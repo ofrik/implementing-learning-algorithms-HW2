@@ -63,6 +63,7 @@ from sklearn.utils.stats import _weighted_percentile
 from sklearn.utils.validation import check_is_fitted
 from sklearn.utils.multiclass import check_classification_targets
 from sklearn.exceptions import NotFittedError
+from sklearn.svm import SVR
 
 
 class QuantileEstimator(BaseEstimator):
@@ -71,7 +72,6 @@ class QuantileEstimator(BaseEstimator):
         if not 0 < alpha < 1.0:
             raise ValueError("`alpha` must be in (0, 1.0) but was %r" % alpha)
         self.alpha = alpha
-
     def fit(self, X, y, sample_weight=None):
         if sample_weight is None:
             self.quantile = stats.scoreatpercentile(y, self.alpha * 100.0)
@@ -392,6 +392,8 @@ class HuberLossFunction(RegressionLossFunction):
                 - pred.take(terminal_region, axis=0))
         median = _weighted_percentile(diff, sample_weight, percentile=50)
         diff_minus_median = diff - median
+        # TODO Ofri to change here
+        # tree.value[leaf,0] = SVR()
         tree.value[leaf, 0] = median + np.mean(
             np.sign(diff_minus_median) *
             np.minimum(np.abs(diff_minus_median), gamma))
