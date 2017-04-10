@@ -29,21 +29,17 @@ def main():
     names = cal_housing.feature_names
 
     print("Training GBRT...")
-    clf = GradientBoostingRegressor(n_estimators=100, max_depth=4,
-                                    learning_rate=0.1, loss='huber',
-                                    random_state=1)
+    params = {'n_estimators':100,'max_depth':4,'learning_rate':0.1,'loss':'huber','random_state':1,'verbose':1}
+    clf = GradientBoostingRegressor(**params)
 
-    myclf = MyGradientBoostingRegressor(n_estimators=100, max_depth=4,
-                                    learning_rate=0.1, loss='huber',
-                                    random_state=1)
+    myclf = MyGradientBoostingRegressor(**params)
 
-    # clf.fit(X_train, y_train)
+    clf.fit(X_train, y_train)
     myclf.fit(X_train, y_train)
     print(" done.")
 
-    print('Convenience plot with ``partial_dependence_plots``')
 
-    # print("Original GradientBoostingRegressor Score: %s"%(clf.score(X_test,y_test)))
+    print("Original GradientBoostingRegressor Score: %s"%(clf.score(X_test,y_test)))
     print("My GradientBoostingRegressor Score: %s"%(myclf.score(X_test,y_test)))
 
 

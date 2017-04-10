@@ -246,6 +246,7 @@ class LossFunction(six.with_metaclass(ABCMeta, object)):
         masked_terminal_regions[~sample_mask] = -1
 
         # update each leaf (= perform line search)
+        # TODO Ofri it's where updating the leafs
         for leaf in np.where(tree.children_left == TREE_LEAF)[0]:
             self._update_terminal_region(tree, masked_terminal_regions,
                                          leaf, X, y, residual,
@@ -392,11 +393,12 @@ class HuberLossFunction(RegressionLossFunction):
                 - pred.take(terminal_region, axis=0))
         median = _weighted_percentile(diff, sample_weight, percentile=50)
         diff_minus_median = diff - median
-        # TODO Ofri to change here
-        # tree.value[leaf,0] = SVR()
-        tree.value[leaf, 0] = median + np.mean(
-            np.sign(diff_minus_median) *
-            np.minimum(np.abs(diff_minus_median), gamma))
+        # # TODO ofri changed here
+        clf = SVR(gamma=gamma).fit(X.take(terminal_region, axis=0),residual.take(terminal_region, axis=0),sample_weight=sample_weight)
+        tree.value[leaf, 0] = np.median(clf.predict(X.take(terminal_region, axis=0)))
+        # tree.value[leaf, 0] = median + np.mean(
+        #     np.sign(diff_minus_median) *
+        #     np.minimum(np.abs(diff_minus_median), gamma))
 
 
 class QuantileLossFunction(RegressionLossFunction):
