@@ -29,7 +29,7 @@ def main():
     names = cal_housing.feature_names
 
     print("Training GBRT...")
-    params = {'n_estimators':100,'max_depth':4,'learning_rate':0.1,'loss':'huber','random_state':1,'verbose':1}
+    params = {'verbose':1}
     clf = GradientBoostingRegressor(**params)
 
     myclf = MyGradientBoostingRegressor(**params)

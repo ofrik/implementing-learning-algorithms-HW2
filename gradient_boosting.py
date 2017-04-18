@@ -68,10 +68,12 @@ from sklearn.svm import SVR
 
 class QuantileEstimator(BaseEstimator):
     """An estimator predicting the alpha-quantile of the training targets."""
+
     def __init__(self, alpha=0.9):
         if not 0 < alpha < 1.0:
             raise ValueError("`alpha` must be in (0, 1.0) but was %r" % alpha)
         self.alpha = alpha
+
     def fit(self, X, y, sample_weight=None):
         if sample_weight is None:
             self.quantile = stats.scoreatpercentile(y, self.alpha * 100.0)
@@ -89,6 +91,7 @@ class QuantileEstimator(BaseEstimator):
 
 class MeanEstimator(BaseEstimator):
     """An estimator predicting the mean of the training targets."""
+
     def fit(self, X, y, sample_weight=None):
         if sample_weight is None:
             self.mean = np.mean(y)
@@ -137,6 +140,7 @@ class PriorProbabilityEstimator(BaseEstimator):
     """An estimator predicting the probability of each
     class in the training data.
     """
+
     def fit(self, X, y, sample_weight=None):
         if sample_weight is None:
             sample_weight = np.ones_like(y, dtype=np.float64)
@@ -275,6 +279,7 @@ class RegressionLossFunction(six.with_metaclass(ABCMeta, LossFunction)):
 class LeastSquaresError(RegressionLossFunction):
     """Loss function for least squares (LS) estimation.
     Terminal regions need not to be updated for least squares. """
+
     def init_estimator(self):
         return MeanEstimator()
 
@@ -305,6 +310,7 @@ class LeastSquaresError(RegressionLossFunction):
 
 class LeastAbsoluteError(RegressionLossFunction):
     """Loss function for least absolute deviation (LAD) regression. """
+
     def init_estimator(self):
         return QuantileEstimator(alpha=0.5)
 
@@ -393,12 +399,9 @@ class HuberLossFunction(RegressionLossFunction):
                 - pred.take(terminal_region, axis=0))
         median = _weighted_percentile(diff, sample_weight, percentile=50)
         diff_minus_median = diff - median
-        # # TODO ofri changed here
-        clf = SVR(gamma=gamma).fit(X.take(terminal_region, axis=0),residual.take(terminal_region, axis=0),sample_weight=sample_weight)
-        tree.value[leaf, 0] = np.median(clf.predict(X.take(terminal_region, axis=0)))
-        # tree.value[leaf, 0] = median + np.mean(
-        #     np.sign(diff_minus_median) *
-        #     np.minimum(np.abs(diff_minus_median), gamma))
+        tree.value[leaf, 0] = median + np.mean(
+            np.sign(diff_minus_median) *
+            np.minimum(np.abs(diff_minus_median), gamma))
 
 
 class QuantileLossFunction(RegressionLossFunction):
@@ -428,7 +431,7 @@ class QuantileLossFunction(RegressionLossFunction):
                     (1.0 - alpha) * diff[~mask].sum()) / y.shape[0]
         else:
             loss = ((alpha * np.sum(sample_weight[mask] * diff[mask]) +
-                    (1.0 - alpha) * np.sum(sample_weight[~mask] * diff[~mask])) /
+                     (1.0 - alpha) * np.sum(sample_weight[~mask] * diff[~mask])) /
                     sample_weight.sum())
         return loss
 
@@ -473,6 +476,7 @@ class BinomialDeviance(ClassificationLossFunction):
     Binary classification is a special case; here, we only need to
     fit one tree instead of ``n_classes`` trees.
     """
+
     def __init__(self, n_classes):
         if n_classes != 2:
             raise ValueError("{0:s} requires 2 classes.".format(
@@ -604,6 +608,7 @@ class ExponentialLoss(ClassificationLossFunction):
     ----------
     Greg Ridgeway, Generalized Boosted Models: A guide to the gbm package, 2007
     """
+
     def __init__(self, n_classes):
         if n_classes != 2:
             raise ValueError("{0:s} requires 2 classes.".format(
@@ -653,14 +658,37 @@ class ExponentialLoss(ClassificationLossFunction):
         return (score.ravel() >= 0.0).astype(np.int)
 
 
+class MyLossFunction(HuberLossFunction):
+
+    def init_estimator(self):
+        return MeanEstimator()
+
+    def __call__(self, y, pred, sample_weight=None):
+        if sample_weight is None:
+            return np.mean((y - pred.ravel()) ** 2.0)
+        else:
+            return (1.0 / sample_weight.sum() *
+                    np.sum(sample_weight * ((y - pred.ravel()) ** 2.0)))
+
+    def negative_gradient(self, y, pred, **kargs):
+        return y - pred.ravel()
+
+    def _update_terminal_region(self, tree, terminal_regions, leaf, X, y, residual, pred, sample_weight):
+        terminal_region = np.where(terminal_regions == leaf)[0]
+        sample_weight = sample_weight.take(terminal_region, axis=0)
+        clf = SVR().fit(X.take(terminal_region,axis=0), residual.take(terminal_region,axis=0),
+                        sample_weight=sample_weight)
+        tree.value[leaf, 0] = np.median(clf.predict(X.take(terminal_region, axis=0)))
+
+
 LOSS_FUNCTIONS = {'ls': LeastSquaresError,
                   'lad': LeastAbsoluteError,
                   'huber': HuberLossFunction,
                   'quantile': QuantileLossFunction,
-                  'deviance': None,    # for both, multinomial and binomial
+                  'deviance': None,  # for both, multinomial and binomial
                   'exponential': ExponentialLoss,
+                  'my': MyLossFunction,
                   }
-
 
 INIT_ESTIMATORS = {'zero': ZeroEstimator}
 
@@ -792,7 +820,7 @@ class BaseGradientBoosting(six.with_metaclass(ABCMeta, BaseEnsemble,
 
             # update tree leaves
             if X_csr is not None:
-                loss.update_terminal_regions(tree.tree_, X_csr, y, residual, y_pred,
+                loss.update_terminal_regions(tree.tree_, X, y, residual, y_pred,
                                              sample_weight, sample_mask,
                                              self.learning_rate, k=k)
             else:
@@ -816,7 +844,7 @@ class BaseGradientBoosting(six.with_metaclass(ABCMeta, BaseEnsemble,
                              "was %r" % self.learning_rate)
 
         if (self.loss not in self._SUPPORTED_LOSS
-                or self.loss not in LOSS_FUNCTIONS):
+            or self.loss not in LOSS_FUNCTIONS):
             raise ValueError("Loss '{0:s}' not supported. ".format(self.loss))
 
         if self.loss == 'deviance':
@@ -841,7 +869,7 @@ class BaseGradientBoosting(six.with_metaclass(ABCMeta, BaseEnsemble,
                     raise ValueError('init="%s" is not supported' % self.init)
             else:
                 if (not hasattr(self.init, 'fit')
-                        or not hasattr(self.init, 'predict')):
+                    or not hasattr(self.init, 'predict')):
                     raise ValueError("init=%r must be valid BaseEstimator "
                                      "and support both fit and "
                                      "predict" % self.init)
@@ -1050,7 +1078,7 @@ class BaseGradientBoosting(six.with_metaclass(ABCMeta, BaseEnsemble,
         """
         n_samples = X.shape[0]
         do_oob = self.subsample < 1.0
-        sample_mask = np.ones((n_samples, ), dtype=np.bool)
+        sample_mask = np.ones((n_samples,), dtype=np.bool)
         n_inbag = max(1, int(self.subsample * n_samples))
         loss_ = self.loss_
 
@@ -1214,7 +1242,7 @@ class BaseGradientBoosting(six.with_metaclass(ABCMeta, BaseEnsemble,
         """
         self._check_initialized()
 
-        total_sum = np.zeros((self.n_features, ), dtype=np.float64)
+        total_sum = np.zeros((self.n_features,), dtype=np.float64)
         for stage in self.estimators_:
             stage_sum = sum(tree.feature_importances_
                             for tree in stage) / len(stage)
@@ -1819,7 +1847,7 @@ class GradientBoostingRegressor(BaseGradientBoosting, RegressorMixin):
     Elements of Statistical Learning Ed. 2, Springer, 2009.
     """
 
-    _SUPPORTED_LOSS = ('ls', 'lad', 'huber', 'quantile')
+    _SUPPORTED_LOSS = ('ls', 'lad', 'huber', 'quantile', 'my')
 
     def __init__(self, loss='ls', learning_rate=0.1, n_estimators=100,
                  subsample=1.0, criterion='friedman_mse', min_samples_split=2,
@@ -1827,9 +1855,8 @@ class GradientBoostingRegressor(BaseGradientBoosting, RegressorMixin):
                  max_depth=3, min_impurity_split=1e-7, init=None, random_state=None,
                  max_features=None, alpha=0.9, verbose=0, max_leaf_nodes=None,
                  warm_start=False, presort='auto'):
-
         super(GradientBoostingRegressor, self).__init__(
-            loss=loss, learning_rate=learning_rate, n_estimators=n_estimators,
+            loss='my', learning_rate=learning_rate, n_estimators=n_estimators,
             criterion=criterion, min_samples_split=min_samples_split,
             min_samples_leaf=min_samples_leaf,
             min_weight_fraction_leaf=min_weight_fraction_leaf,
