@@ -29,7 +29,7 @@ def main():
     names = cal_housing.feature_names
 
     print("Training GBRT...")
-    params = {'verbose':1}
+    params = {'verbose': 1, 'n_estimators': 10, 'loss': 'ls','min_samples_leaf':6}
     clf = GradientBoostingRegressor(**params)
 
     myclf = MyGradientBoostingRegressor(**params)
@@ -38,10 +38,9 @@ def main():
     myclf.fit(X_train, y_train)
     print(" done.")
 
-
-    print("Original GradientBoostingRegressor Score: %s"%(clf.score(X_test,y_test)))
-    print("My GradientBoostingRegressor Score: %s"%(myclf.score(X_test,y_test)))
-
+    # myclf.predict(X_test)
+    print("Original GradientBoostingRegressor Score: %s" % (clf.score(X_test, y_test)))
+    print("My GradientBoostingRegressor Score: %s" % (myclf.score(X_test, y_test)))
 
 
 # Needed on Windows because plot_partial_dependence uses multiprocessing
