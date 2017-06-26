@@ -33,7 +33,7 @@ def compare_algorithms(datasetName, data, target):
     params = {'n_estimators': [10, 20, 30, 40], 'loss': ['ls', 'huber'], 'min_samples_leaf': [6],
               'max_depth': [3, 4, 5, 6]}
 
-    print("Training GBRT on %s..." % datasetName)
+    print("\n\nTraining GBRT on %s..." % datasetName)
     clf = GridSearchCV(GradientBoostingRegressor(), params, cv=5, n_jobs=-1)
     clf.fit(X_train, y_train)
     print("Best params original: %s" % clf.best_params_)
